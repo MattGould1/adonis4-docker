@@ -1,0 +1,77 @@
+version: '2'
+
+networks:
+    adonis4_backend:
+        driver: bridge
+
+services:
+### Applications Code Container #############################
+    applications:
+        image: tianon/true
+        volumes:
+            - ./src/:/usr/src/app
+            - ./tmp/mysql-data:/var/lib/mysql
+            - ./tmp/logs:/var/log/nginx
+            - ./config/htpasswd/.htpasswd:/etc/nginx/.htpasswd
+            - ./config/nginx/nginx.conf:/etc/nginx/nginx.conf
+            - ./config/${ENVIRONMENT}.conf:/etc/nginx/conf.d/site.conf
+        container_name: adonis4-app
+        networks:
+            - adonis4_backend
+
+### nginx container ###############
+    nginx:
+        build: ./dockers/nginx/
+        ports:
+            - 80:80
+            - 443:443
+        expose:
+            - 80
+            - 443
+        links:
+            - adonis4
+        volumes_from:
+            - applications
+        extra_hosts:
+            - "dockerhost:127.0.0.1"
+        container_name: adonis4-nginx
+        networks:
+            - adonis4_backend
+
+### adonisjs Container ###########################
+    adonisjs:
+        build:
+            context: ./src/adonis4
+        volumes_from:
+            - applications
+        ports:
+            - 8080:8080
+        container_name: adonis4
+        networks:
+            - adonis4_backend
+
+
+
+### MYSQL CONTAINER #########################################
+    mysql:
+        image: mysql:latest
+        volumes:
+            - ./db:/docker-entrypoint-initdb.d
+        volumes_from:
+            - applications
+        environment:
+            MYSQL_ROOT_PASSWORD: "adonis4"
+            MYSQL_DATABASE: "adonis4"
+            MYSQL_USER: "not_root"
+            MYSQL_PASSWORD: "adonis4"
+        ports:
+            - 3306:3306
+        command: mysqld --sql_mode=""
+        container_name: adonis4-mysql
+        networks:
+            - adonis4_backend
+
+### Volumes Setup ###########################################
+volumes:
+    mysql:
+        driver: "local"
